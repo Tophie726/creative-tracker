@@ -129,49 +129,8 @@ export function FileUpload({ onFileUpload, isLoading }: FileUploadProps) {
           <div className="flex gap-3">
             <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
             <div>
-              <p className="font-medium text-gray-800">Select all options under "Include"</p>
-              <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs text-gray-600">
-                <label className="flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                  Terminated campaigns
-                </label>
-                <label className="flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                  Paused campaigns
-                </label>
-                <label className="flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                  Zero impressions
-                </label>
-                <label className="flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                  Placement data
-                </label>
-                <label className="flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                  <span className="font-semibold text-blue-700">Brand assets data</span>
-                </label>
-                <label className="flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                  Sponsored Products data
-                </label>
-                <label className="flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                  <span className="font-semibold text-blue-700">Sponsored Brands data</span>
-                </label>
-                <label className="flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                  <span className="font-semibold text-blue-700">SB multi-ad group data</span>
-                </label>
-                <label className="flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                  Sponsored Display data
-                </label>
-                <label className="flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                  Search term data
-                </label>
-              </div>
+              <p className="font-medium text-gray-800">Check every box under "Include"</p>
+              <p className="text-gray-600 mt-1">Select <span className="font-semibold text-blue-700">all checkboxes</span> for the most complete data</p>
             </div>
           </div>
 
@@ -186,7 +145,7 @@ export function FileUpload({ onFileUpload, isLoading }: FileUploadProps) {
 
         <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
           <p className="text-xs text-amber-800">
-            <span className="font-semibold">Tip:</span> The highlighted options are required for video creative tracking. Select all boxes for the most complete data!
+            <span className="font-semibold">Tip:</span> Make sure "Brand assets data" and "Sponsored Brands data" are checked - these are required for video creative tracking!
           </p>
         </div>
       </div>
