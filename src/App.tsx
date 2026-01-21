@@ -1,16 +1,23 @@
-import { useState, useCallback } from 'react';
-import { Upload, Library, BarChart3, FlaskConical, AlertTriangle } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { Upload, Library, BarChart3, FlaskConical, AlertTriangle, Save, User, LogOut, Cloud, CloudOff } from 'lucide-react';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { PasswordGate } from './components/PasswordGate';
+import { AuthModal } from './components/AuthModal';
 import { FileUpload } from './components/FileUpload';
 import { MediaLibrary } from './components/MediaLibrary';
 import { PerformanceDashboard } from './components/PerformanceDashboard';
 import { ABTestView } from './components/ABTestView';
 import { parseExcelFile } from './utils/parseExcel';
+import { useDataPersistence } from './hooks/useDataPersistence';
 import type { BrandAsset, CampaignData } from './types';
 import './index.css';
 
 type Tab = 'upload' | 'library' | 'performance' | 'abtest';
 
-function App() {
+function AppContent() {
+  const { isPasswordVerified, isAuthenticated, user, signOut } = useAuth();
+  const { saveData, loadData, updateAssetLabels, isSaving, isLoading: isLoadingData, lastSaved } = useDataPersistence();
+
   const [activeTab, setActiveTab] = useState<Tab>('upload');
   const [isLoading, setIsLoading] = useState(false);
   const [assets, setAssets] = useState<BrandAsset[]>([]);
@@ -18,6 +25,28 @@ function App() {
   const [categories, setCategories] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  // Show password gate if not verified
+  if (!isPasswordVerified) {
+    return <PasswordGate />;
+  }
+
+  // Load saved data when user logs in
+  useEffect(() => {
+    if (isAuthenticated && assets.length === 0) {
+      loadData().then(({ assets: savedAssets, campaignData: savedCampaigns }) => {
+        if (savedAssets.length > 0 || savedCampaigns.length > 0) {
+          setAssets(savedAssets);
+          setCampaignData(savedCampaigns);
+          if (savedAssets.length > 0) {
+            setActiveTab('library');
+          }
+        }
+      });
+    }
+  }, [isAuthenticated]);
 
   const handleFileUpload = useCallback(async (file: File) => {
     setIsLoading(true);
@@ -61,6 +90,7 @@ function App() {
 
       setAssets(assetsWithLabels);
       setCampaignData(data.campaignData);
+      setSaveStatus('idle');
 
       // Auto-switch to library tab after upload (if we have assets)
       if (assetsWithLabels.length > 0) {
@@ -80,11 +110,35 @@ function App() {
         asset.assetId === assetId ? { ...asset, ...updates } : asset
       )
     );
-  }, []);
+    setSaveStatus('idle');
+
+    // Auto-save label updates if authenticated
+    if (isAuthenticated) {
+      updateAssetLabels(assetId, {
+        creativeName: updates.creativeName,
+        category: updates.category,
+      });
+    }
+  }, [isAuthenticated, updateAssetLabels]);
 
   const handleAddCategory = useCallback((category: string) => {
     setCategories((prev) => [...prev, category]);
   }, []);
+
+  const handleSave = useCallback(async () => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    setSaveStatus('saving');
+    const result = await saveData(assets, campaignData);
+    setSaveStatus(result.success ? 'saved' : 'error');
+
+    if (result.success) {
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
+  }, [isAuthenticated, saveData, assets, campaignData]);
 
   const hasData = assets.length > 0 || campaignData.length > 0;
 
@@ -99,16 +153,75 @@ function App() {
               <p className="text-sm text-gray-500">Analyze your Amazon Ads creative performance</p>
             </div>
 
-            {hasData && (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
-                  {assets.length} assets
-                </span>
-                <span className="px-2 py-1 bg-green-100 text-green-700 rounded">
-                  {campaignData.length} ad entries
-                </span>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {hasData && (
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                    {assets.length} assets
+                  </span>
+                  <span className="px-2 py-1 bg-green-100 text-green-700 rounded">
+                    {campaignData.length} ad entries
+                  </span>
+                </div>
+              )}
+
+              {/* Save/Auth Button */}
+              {hasData && (
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    isAuthenticated
+                      ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  }`}
+                >
+                  {isSaving ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : saveStatus === 'saved' ? (
+                    <>
+                      <Cloud className="w-4 h-4" />
+                      Saved!
+                    </>
+                  ) : isAuthenticated ? (
+                    <>
+                      <Save className="w-4 h-4" />
+                      Save
+                    </>
+                  ) : (
+                    <>
+                      <CloudOff className="w-4 h-4" />
+                      Login to Save
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* User Menu */}
+              {isAuthenticated ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">{user?.email}</span>
+                  <button
+                    onClick={signOut}
+                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                    title="Sign out"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg text-sm"
+                >
+                  <User className="w-4 h-4" />
+                  Sign In
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -173,6 +286,14 @@ function App() {
           </div>
         )}
 
+        {/* Loading saved data indicator */}
+        {isLoadingData && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 flex items-center gap-2">
+            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            Loading your saved data...
+          </div>
+        )}
+
         {activeTab === 'upload' && (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="text-center mb-8">
@@ -214,8 +335,25 @@ function App() {
       <footer className="bg-white border-t mt-auto">
         <div className="max-w-7xl mx-auto px-4 py-4 text-center text-sm text-gray-500">
           Built for Sophie Hub Partners
+          {lastSaved && (
+            <span className="ml-2 text-green-600">
+              · Last saved {lastSaved.toLocaleTimeString()}
+            </span>
+          )}
         </div>
       </footer>
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={() => {
+          // After login, save current data
+          if (assets.length > 0 || campaignData.length > 0) {
+            saveData(assets, campaignData);
+          }
+        }}
+      />
     </div>
   );
 }
@@ -251,6 +389,14 @@ function TabButton({ active, onClick, icon, label, disabled, badge }: TabButtonP
         </span>
       )}
     </button>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

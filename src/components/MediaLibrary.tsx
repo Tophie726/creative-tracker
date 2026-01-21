@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
-import { Video, Image, ExternalLink, X, Play, Zap, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Video, Image, ExternalLink, X, Play, Zap, ChevronDown, ChevronUp, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { BrandAsset, CampaignData } from '../types';
+
+const ITEMS_PER_PAGE = 24; // 6 columns x 4 rows
 
 interface MediaLibraryProps {
   assets: BrandAsset[];
@@ -15,6 +17,7 @@ export function MediaLibrary({ assets, campaignData, onUpdateAsset }: MediaLibra
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAsset, setSelectedAsset] = useState<BrandAsset | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Get unique video asset IDs that are actually used in ads + their campaign info with metrics
   const assetAdInfo = useMemo(() => {
@@ -106,6 +109,18 @@ export function MediaLibrary({ assets, campaignData, onUpdateAsset }: MediaLibra
       return true;
     });
   }, [assets, filter, assetIdsInAds, searchQuery, selectedCategory]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredAssets.length / ITEMS_PER_PAGE);
+  const paginatedAssets = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredAssets.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredAssets, currentPage]);
+
+  // Reset page when filters change
+  useMemo(() => {
+    setCurrentPage(1);
+  }, [filter, searchQuery, selectedCategory]);
 
   const inAdsCount = assets.filter((a) => assetIdsInAds.has(a.assetId)).length;
   const videoCount = assets.filter((a) => a.assetType === 'Video').length;
@@ -237,9 +252,9 @@ export function MediaLibrary({ assets, campaignData, onUpdateAsset }: MediaLibra
         </div>
       )}
 
-      {/* Asset Grid - back to vertical cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {filteredAssets.map((asset) => (
+      {/* Asset Grid - paginated */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+        {paginatedAssets.map((asset) => (
           <AssetCard
             key={asset.assetId}
             asset={asset}
@@ -253,6 +268,60 @@ export function MediaLibrary({ assets, campaignData, onUpdateAsset }: MediaLibra
       {filteredAssets.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           No assets found
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-6">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="p-2 rounded-lg border hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+
+          <div className="flex items-center gap-1">
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum: number;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`w-10 h-10 rounded-lg font-medium ${
+                    currentPage === pageNum
+                      ? 'bg-blue-600 text-white'
+                      : 'hover:bg-gray-100'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="p-2 rounded-lg border hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+
+          <span className="ml-4 text-sm text-gray-500">
+            Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, filteredAssets.length)} of {filteredAssets.length}
+          </span>
         </div>
       )}
 
