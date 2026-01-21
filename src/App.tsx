@@ -92,6 +92,11 @@ function AppContent() {
       setCampaignData(data.campaignData);
       setSaveStatus('idle');
 
+      // Auto-save if logged in
+      if (isAuthenticated && (assetsWithLabels.length > 0 || data.campaignData.length > 0)) {
+        saveData(assetsWithLabels, data.campaignData);
+      }
+
       // Auto-switch to library tab after upload (if we have assets)
       if (assetsWithLabels.length > 0) {
         setActiveTab('library');
