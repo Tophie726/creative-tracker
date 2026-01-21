@@ -620,16 +620,26 @@ function PreviewModal({ asset, adInfo, onClose }: PreviewModalProps) {
 
           {/* Show ad placements in modal - sorted by sales */}
           {adInfo && (
-            <div className="mt-4 p-3 bg-orange-50 rounded-lg">
-              <p className="text-sm font-medium text-orange-700 mb-2">
+            <div className="mt-4 p-4 bg-orange-50 rounded-lg">
+              <p className="text-sm font-medium text-orange-700 mb-3">
                 Running in {adInfo.adCount} ad entries across {adInfo.campaigns.size} campaigns
               </p>
-              <div className="text-xs space-y-1 max-h-40 overflow-y-auto">
+
+              {/* Table Header */}
+              <div className="flex items-center justify-between py-2 border-b-2 border-orange-300 text-xs font-semibold text-orange-800">
+                <span className="flex-1">Ad Name</span>
+                <span className="w-20 text-right">Sales</span>
+                <span className="w-20 text-right">ROAS</span>
+              </div>
+
+              {/* Table Body */}
+              <div className="text-xs max-h-48 overflow-y-auto">
                 {adInfo.ads.map((ad, i) => (
-                  <div key={i} className="flex items-center justify-between py-1 border-b border-orange-200 last:border-0">
-                    <span className="text-orange-700 truncate flex-1 mr-2">• {ad.name}</span>
-                    <span className="text-orange-600 whitespace-nowrap font-medium">
-                      ${ad.sales.toFixed(2)} · <span className={ad.roas >= 1 ? 'text-green-600' : 'text-red-500'}>ROAS {ad.roas.toFixed(2)}</span>
+                  <div key={i} className="flex items-center justify-between py-2 border-b border-orange-200 last:border-0 hover:bg-orange-100/50">
+                    <span className="text-orange-700 truncate flex-1 pr-2" title={ad.name}>{ad.name}</span>
+                    <span className="w-20 text-right text-orange-600 font-medium">${ad.sales.toFixed(2)}</span>
+                    <span className={`w-20 text-right font-medium ${ad.roas >= 1 ? 'text-green-600' : 'text-red-500'}`}>
+                      {ad.roas.toFixed(2)}
                     </span>
                   </div>
                 ))}
