@@ -51,7 +51,15 @@ export interface AggregatedPerformance {
   adCount: number;
 }
 
+export interface ParseInfo {
+  hasBrandAssets: boolean;
+  hasCampaignData: boolean;
+  campaignDataSource: string | null; // Which sheet the campaign data came from
+  warnings: string[];
+}
+
 export interface ParsedData {
   brandAssets: BrandAsset[];
   campaignData: CampaignData[];
+  parseInfo: ParseInfo;
 }

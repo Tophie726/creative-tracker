@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { BrandAsset, CampaignData, ParsedData } from '../types';
+import type { BrandAsset, CampaignData, ParsedData, ParseInfo } from '../types';
 
 export function parseExcelFile(file: File): Promise<ParsedData> {
   return new Promise((resolve, reject) => {
@@ -10,13 +10,22 @@ export function parseExcelFile(file: File): Promise<ParsedData> {
         const data = e.target?.result;
         const workbook = XLSX.read(data, { type: 'binary' });
 
+        const warnings: string[] = [];
+
         // Parse Brand Assets Data
-        const brandAssets = parseBrandAssets(workbook);
+        const brandAssets = parseBrandAssets(workbook, warnings);
 
-        // Parse SB Multi Ad Group Campaigns
-        const campaignData = parseCampaignData(workbook);
+        // Parse Campaign Data (tries multiple sheets)
+        const { campaigns: campaignData, source: campaignDataSource } = parseCampaignData(workbook, warnings);
 
-        resolve({ brandAssets, campaignData });
+        const parseInfo: ParseInfo = {
+          hasBrandAssets: brandAssets.length > 0,
+          hasCampaignData: campaignData.length > 0,
+          campaignDataSource,
+          warnings,
+        };
+
+        resolve({ brandAssets, campaignData, parseInfo });
       } catch (error) {
         reject(error);
       }
@@ -27,12 +36,12 @@ export function parseExcelFile(file: File): Promise<ParsedData> {
   });
 }
 
-function parseBrandAssets(workbook: XLSX.WorkBook): BrandAsset[] {
+function parseBrandAssets(workbook: XLSX.WorkBook, warnings: string[]): BrandAsset[] {
   const sheetName = 'Brand Assets Data (Read-only)';
   const sheet = workbook.Sheets[sheetName];
 
   if (!sheet) {
-    console.warn('Brand Assets Data sheet not found');
+    warnings.push('Missing "Brand Assets Data" sheet - make sure to check "Brand assets data" when downloading the bulk report');
     return [];
   }
 
@@ -50,7 +59,7 @@ function parseBrandAssets(workbook: XLSX.WorkBook): BrandAsset[] {
   }
 
   if (headerRowIndex === -1) {
-    console.warn('Could not find header row in Brand Assets Data');
+    warnings.push('Could not find header row in Brand Assets Data sheet');
     return [];
   }
 
@@ -79,11 +88,12 @@ function parseBrandAssets(workbook: XLSX.WorkBook): BrandAsset[] {
   return assets;
 }
 
-function parseCampaignData(workbook: XLSX.WorkBook): CampaignData[] {
+function parseCampaignData(workbook: XLSX.WorkBook, warnings: string[]): { campaigns: CampaignData[]; source: string | null } {
   const campaigns: CampaignData[] = [];
 
   // Try multiple sheet names - different bulk report formats use different sheets
   const sheetNames = ['SB Multi Ad Group Campaigns', 'Sponsored Brands Campaigns'];
+  let foundSheet: string | null = null;
 
   for (const sheetName of sheetNames) {
     const sheet = workbook.Sheets[sheetName];
@@ -125,16 +135,20 @@ function parseCampaignData(workbook: XLSX.WorkBook): CampaignData[] {
       });
     }
 
-    // If we found data in this sheet, we can stop
+    // If we found data in this sheet, record it and stop
     if (campaigns.length > 0) {
-      console.log(`Found ${campaigns.length} campaign entries in ${sheetName}`);
+      foundSheet = sheetName;
       break;
     }
   }
 
-  if (campaigns.length === 0) {
-    console.warn('No campaign data with video assets found in any supported sheet');
+  // Check if sheets exist but have no video data
+  const hasSBSheet = sheetNames.some(name => workbook.Sheets[name]);
+  if (hasSBSheet && campaigns.length === 0) {
+    warnings.push('Found Sponsored Brands data but no video ads - you may not have any video campaigns running');
+  } else if (!hasSBSheet) {
+    warnings.push('Missing Sponsored Brands data - make sure to check "Sponsored Brands data" and "Sponsored Brands multi-ad group data" when downloading');
   }
 
-  return campaigns;
+  return { campaigns, source: foundSheet };
 }

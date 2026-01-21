@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Upload, Library, BarChart3, FlaskConical } from 'lucide-react';
+import { Upload, Library, BarChart3, FlaskConical, AlertTriangle } from 'lucide-react';
 import { FileUpload } from './components/FileUpload';
 import { MediaLibrary } from './components/MediaLibrary';
 import { PerformanceDashboard } from './components/PerformanceDashboard';
@@ -15,15 +15,29 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [assets, setAssets] = useState<BrandAsset[]>([]);
   const [campaignData, setCampaignData] = useState<CampaignData[]>([]);
-  const [categories, setCategories] = useState<string[]>(['Brand', 'Product', 'Lifestyle', 'Testimonial', 'Demo']);
+  const [categories, setCategories] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
 
   const handleFileUpload = useCallback(async (file: File) => {
     setIsLoading(true);
     setError(null);
+    setWarnings([]);
 
     try {
       const data = await parseExcelFile(file);
+
+      // Check if we got any usable data
+      if (!data.parseInfo.hasBrandAssets && !data.parseInfo.hasCampaignData) {
+        setError('This file doesn\'t appear to be an Amazon Bulk Report. Please download from Campaign Manager → Bulk operations.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Set warnings from parsing
+      if (data.parseInfo.warnings.length > 0) {
+        setWarnings(data.parseInfo.warnings);
+      }
 
       // Preserve existing labels if re-uploading
       const existingLabels = new Map<string, { creativeName?: string; category?: string }>();
@@ -48,13 +62,13 @@ function App() {
       setAssets(assetsWithLabels);
       setCampaignData(data.campaignData);
 
-      // Auto-switch to library tab after upload
+      // Auto-switch to library tab after upload (if we have assets)
       if (assetsWithLabels.length > 0) {
         setActiveTab('library');
       }
     } catch (err) {
       console.error('Error parsing file:', err);
-      setError('Failed to parse the Excel file. Please make sure it\'s a valid Amazon Bulk Report.');
+      setError('Failed to parse the Excel file. Please make sure it\'s a valid Amazon Bulk Report from Campaign Manager → Bulk operations.');
     } finally {
       setIsLoading(false);
     }
@@ -140,6 +154,22 @@ function App() {
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
             {error}
+          </div>
+        )}
+
+        {warnings.length > 0 && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-amber-800">Some data may be missing</p>
+                <ul className="mt-1 text-sm text-amber-700 list-disc list-inside">
+                  {warnings.map((warning, i) => (
+                    <li key={i}>{warning}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </div>
         )}
 

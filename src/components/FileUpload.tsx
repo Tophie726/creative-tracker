@@ -113,7 +113,7 @@ export function FileUpload({ onFileUpload, isLoading }: FileUploadProps) {
           <div className="flex gap-3">
             <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
             <div>
-              <p className="font-medium text-gray-800">Go to Amazon Advertising Console</p>
+              <p className="font-medium text-gray-800">Go to Amazon Advertising Campaign Manager</p>
               <p className="text-gray-600">Navigate to <span className="font-mono bg-white px-1.5 py-0.5 rounded text-xs">Bulk operations</span> in the left sidebar</p>
             </div>
           </div>
