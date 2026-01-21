@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Video, Image, ExternalLink, X, Play, Zap, ChevronDown, ChevronUp, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { BrandAsset, CampaignData } from '../types';
 import { generateAndUploadThumbnail } from '../utils/thumbnails';
@@ -573,18 +573,40 @@ interface PreviewModalProps {
 
 function PreviewModal({ asset, adInfo, onClose }: PreviewModalProps) {
   const isVideo = asset.assetType === 'Video';
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Stop video when modal closes
+  const handleClose = useCallback(() => {
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.src = '';
+      videoRef.current.load();
+    }
+    onClose();
+  }, [onClose]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    const video = videoRef.current;
+    return () => {
+      if (video) {
+        video.pause();
+        video.src = '';
+      }
+    };
+  }, []);
 
   return (
     <div
       className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="relative max-w-4xl w-full bg-white rounded-xl overflow-hidden max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white"
         >
           <X className="w-5 h-5" />
@@ -593,6 +615,7 @@ function PreviewModal({ asset, adInfo, onClose }: PreviewModalProps) {
         <div className="aspect-video bg-black">
           {isVideo && asset.assetUrl ? (
             <video
+              ref={videoRef}
               src={asset.assetUrl}
               controls
               autoPlay
