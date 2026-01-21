@@ -16,7 +16,7 @@ type Tab = 'upload' | 'library' | 'performance' | 'abtest';
 
 function AppContent() {
   const { isPasswordVerified, isAuthenticated, user, signOut } = useAuth();
-  const { saveData, loadData, updateAssetLabels, isSaving, isLoading: isLoadingData, lastSaved } = useDataPersistence();
+  const { saveData, loadData, updateAssetLabels, updateAssetThumbnail, isSaving, isLoading: isLoadingData, lastSaved, userId } = useDataPersistence();
 
   const [activeTab, setActiveTab] = useState<Tab>('upload');
   const [isLoading, setIsLoading] = useState(false);
@@ -293,6 +293,8 @@ function AppContent() {
             onUpdateAsset={handleUpdateAsset}
             categories={categories}
             onAddCategory={handleAddCategory}
+            userId={userId}
+            onUpdateThumbnail={updateAssetThumbnail}
           />
         )}
 

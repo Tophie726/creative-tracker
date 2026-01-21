@@ -10,6 +10,7 @@ interface DbBrandAsset {
   asset_url: string;
   creative_name: string | null;
   category: string | null;
+  thumbnail_url: string | null;
 }
 
 interface DbCampaignData {
@@ -69,6 +70,7 @@ export function useDataPersistence() {
           asset_url: asset.assetUrl,
           creative_name: asset.creativeName || null,
           category: asset.category || null,
+          thumbnail_url: asset.thumbnailUrl || null,
         }));
 
         const { error: assetsError } = await supabase
@@ -162,6 +164,7 @@ export function useDataPersistence() {
         assetUrl: row.asset_url,
         creativeName: row.creative_name || '',
         category: row.category || '',
+        thumbnailUrl: row.thumbnail_url || '',
       }));
 
       const campaignData: CampaignData[] = ((campaignRows || []) as DbCampaignData[]).map(row => ({
@@ -226,13 +229,39 @@ export function useDataPersistence() {
     }
   }, [isAuthenticated, user]);
 
+  // Update a single asset's thumbnail
+  const updateAssetThumbnail = useCallback(async (
+    assetId: string,
+    thumbnailUrl: string
+  ): Promise<{ success: boolean }> => {
+    if (!isAuthenticated || !user) {
+      return { success: false };
+    }
+
+    try {
+      const { error } = await supabase
+        .from('brand_assets')
+        .update({ thumbnail_url: thumbnailUrl })
+        .eq('user_id', user.id)
+        .eq('asset_id', assetId);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (err) {
+      console.error('Error updating thumbnail:', err);
+      return { success: false };
+    }
+  }, [isAuthenticated, user]);
+
   return {
     saveData,
     loadData,
     updateAssetLabels,
+    updateAssetThumbnail,
     isSaving,
     isLoading,
     lastSaved,
     canSave: isAuthenticated,
+    userId: user?.id,
   };
 }

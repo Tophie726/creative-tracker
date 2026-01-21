@@ -6,6 +6,8 @@ export interface BrandAsset {
   // User-defined labels
   creativeName?: string;
   category?: string;
+  // Cached video thumbnail
+  thumbnailUrl?: string;
 }
 
 export interface CampaignData {

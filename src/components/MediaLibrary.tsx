@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Video, Image, ExternalLink, X, Play, Zap, ChevronDown, ChevronUp, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { BrandAsset, CampaignData } from '../types';
+import { generateAndUploadThumbnail } from '../utils/thumbnails';
 
 const ITEMS_PER_PAGE = 24; // 6 columns x 4 rows
 
@@ -10,9 +11,11 @@ interface MediaLibraryProps {
   onUpdateAsset: (assetId: string, updates: Partial<BrandAsset>) => void;
   categories: string[];
   onAddCategory: (category: string) => void;
+  userId?: string;
+  onUpdateThumbnail?: (assetId: string, thumbnailUrl: string) => void;
 }
 
-export function MediaLibrary({ assets, campaignData, onUpdateAsset }: MediaLibraryProps) {
+export function MediaLibrary({ assets, campaignData, onUpdateAsset, userId, onUpdateThumbnail }: MediaLibraryProps) {
   const [filter, setFilter] = useState<'inAds' | 'all' | 'video' | 'image'>('inAds');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAsset, setSelectedAsset] = useState<BrandAsset | null>(null);
@@ -261,6 +264,11 @@ export function MediaLibrary({ assets, campaignData, onUpdateAsset }: MediaLibra
             onUpdate={(updates) => onUpdateAsset(asset.assetId, updates)}
             onPreview={() => setSelectedAsset(asset)}
             adInfo={assetAdInfo.get(asset.assetId)}
+            userId={userId}
+            onThumbnailGenerated={onUpdateThumbnail ? (url) => {
+              onUpdateThumbnail(asset.assetId, url);
+              onUpdateAsset(asset.assetId, { thumbnailUrl: url });
+            } : undefined}
           />
         ))}
       </div>
@@ -350,54 +358,78 @@ interface AssetCardProps {
   onUpdate: (updates: Partial<BrandAsset>) => void;
   onPreview: () => void;
   adInfo?: AdInfo;
+  userId?: string;
+  onThumbnailGenerated?: (thumbnailUrl: string) => void;
 }
 
-function AssetCard({ asset, onUpdate, onPreview, adInfo }: AssetCardProps) {
+function AssetCard({ asset, onUpdate, onPreview, adInfo, userId, onThumbnailGenerated }: AssetCardProps) {
   const [imageError, setImageError] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [videoThumbnail, setVideoThumbnail] = useState<string | null>(null);
+  const [localThumbnail, setLocalThumbnail] = useState<string | null>(null);
   const [thumbnailLoading, setThumbnailLoading] = useState(false);
+  const [thumbnailAttempted, setThumbnailAttempted] = useState(false);
   const isVideo = asset.assetType === 'Video';
   const isInAds = !!adInfo;
 
-  // Generate video thumbnail on mount
-  useState(() => {
-    if (isVideo && asset.assetUrl && !videoThumbnail && !thumbnailLoading) {
-      setThumbnailLoading(true);
+  // Use cached thumbnail or local one
+  const displayThumbnail = asset.thumbnailUrl || localThumbnail;
+
+  // Generate and optionally upload thumbnail for videos without cached thumbnails
+  useEffect(() => {
+    if (!isVideo || !asset.assetUrl || displayThumbnail || thumbnailLoading || thumbnailAttempted) {
+      return;
+    }
+
+    setThumbnailLoading(true);
+    setThumbnailAttempted(true);
+
+    // If user is logged in, generate and upload to Supabase
+    if (userId && onThumbnailGenerated) {
+      generateAndUploadThumbnail(asset.assetId, asset.assetUrl, userId)
+        .then((url) => {
+          if (url) {
+            onThumbnailGenerated(url);
+          }
+        })
+        .finally(() => setThumbnailLoading(false));
+    } else {
+      // Generate local thumbnail only (not logged in)
       const video = document.createElement('video');
       video.crossOrigin = 'anonymous';
       video.muted = true;
       video.preload = 'metadata';
 
       video.onloadeddata = () => {
-        video.currentTime = 0.5; // Seek to 0.5 seconds
+        video.currentTime = 0.5;
       };
 
       video.onseeked = () => {
         try {
           const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
+          const scale = Math.min(1, 400 / video.videoWidth);
+          canvas.width = video.videoWidth * scale;
+          canvas.height = video.videoHeight * scale;
           const ctx = canvas.getContext('2d');
           if (ctx) {
-            ctx.drawImage(video, 0, 0);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-            setVideoThumbnail(dataUrl);
+            setLocalThumbnail(dataUrl);
           }
         } catch (e) {
-          // CORS error - can't capture frame
-          console.log('Could not capture video thumbnail (CORS)');
+          // CORS error
         }
         setThumbnailLoading(false);
+        video.src = '';
       };
 
       video.onerror = () => {
         setThumbnailLoading(false);
+        video.src = '';
       };
 
       video.src = asset.assetUrl;
     }
-  });
+  }, [isVideo, asset.assetUrl, asset.assetId, displayThumbnail, thumbnailLoading, thumbnailAttempted, userId, onThumbnailGenerated]);
 
   return (
     <div className={`bg-white rounded-xl shadow-sm border overflow-hidden ${isInAds ? 'ring-2 ring-orange-400' : ''}`}>
@@ -408,11 +440,11 @@ function AssetCard({ asset, onUpdate, onPreview, adInfo }: AssetCardProps) {
       >
         {!imageError && asset.assetUrl ? (
           isVideo ? (
-            videoThumbnail ? (
-              // Show captured thumbnail
+            displayThumbnail ? (
+              // Show cached/generated thumbnail
               <div className="relative w-full h-full">
                 <img
-                  src={videoThumbnail}
+                  src={displayThumbnail}
                   alt={asset.assetName}
                   className="w-full h-full object-cover"
                 />
@@ -425,23 +457,19 @@ function AssetCard({ asset, onUpdate, onPreview, adInfo }: AssetCardProps) {
                   Video
                 </span>
               </div>
+            ) : thumbnailLoading ? (
+              // Loading state
+              <div className="relative w-full h-full bg-gray-800 flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 text-white text-xs rounded">
+                  Video
+                </span>
+              </div>
             ) : (
-              // Fallback: use video element directly as preview
-              <div className="relative w-full h-full bg-gray-900">
-                <video
-                  src={asset.assetUrl}
-                  className="w-full h-full object-cover"
-                  muted
-                  preload="metadata"
-                  onLoadedData={(e) => {
-                    // Seek to show a frame
-                    (e.target as HTMLVideoElement).currentTime = 0.5;
-                  }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-14 h-14 bg-black/50 rounded-full flex items-center justify-center">
-                    <Play className="w-8 h-8 text-white ml-1" />
-                  </div>
+              // Placeholder when thumbnail unavailable
+              <div className="relative w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
+                <div className="w-14 h-14 bg-black/50 rounded-full flex items-center justify-center">
+                  <Play className="w-8 h-8 text-white ml-1" />
                 </div>
                 <span className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 text-white text-xs rounded">
                   Video
