@@ -365,71 +365,46 @@ interface AssetCardProps {
 function AssetCard({ asset, onUpdate, onPreview, adInfo, userId, onThumbnailGenerated }: AssetCardProps) {
   const [imageError, setImageError] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [localThumbnail, setLocalThumbnail] = useState<string | null>(null);
   const [thumbnailLoading, setThumbnailLoading] = useState(false);
   const [thumbnailAttempted, setThumbnailAttempted] = useState(false);
   const isVideo = asset.assetType === 'Video';
   const isInAds = !!adInfo;
 
-  // Use cached thumbnail or local one
-  const displayThumbnail = asset.thumbnailUrl || localThumbnail;
+  // Use cached thumbnail from Supabase
+  const displayThumbnail = asset.thumbnailUrl;
 
   // Generate and optionally upload thumbnail for videos without cached thumbnails
   useEffect(() => {
-    if (!isVideo || !asset.assetUrl || displayThumbnail || thumbnailLoading || thumbnailAttempted) {
+    if (!isVideo || !asset.assetUrl || displayThumbnail || thumbnailAttempted) {
       return;
     }
 
-    setThumbnailLoading(true);
     setThumbnailAttempted(true);
 
-    // If user is logged in, generate and upload to Supabase
+    // Only try to generate if user is logged in (can save to Supabase)
+    // Amazon CDN blocks CORS so client-side generation usually fails
     if (userId && onThumbnailGenerated) {
+      setThumbnailLoading(true);
+
+      // Timeout after 5 seconds - Amazon CDN usually blocks CORS
+      const timeout = setTimeout(() => {
+        setThumbnailLoading(false);
+      }, 5000);
+
       generateAndUploadThumbnail(asset.assetId, asset.assetUrl, userId)
         .then((url) => {
+          clearTimeout(timeout);
           if (url) {
             onThumbnailGenerated(url);
           }
         })
-        .finally(() => setThumbnailLoading(false));
-    } else {
-      // Generate local thumbnail only (not logged in)
-      const video = document.createElement('video');
-      video.crossOrigin = 'anonymous';
-      video.muted = true;
-      video.preload = 'metadata';
-
-      video.onloadeddata = () => {
-        video.currentTime = 0.5;
-      };
-
-      video.onseeked = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const scale = Math.min(1, 400 / video.videoWidth);
-          canvas.width = video.videoWidth * scale;
-          canvas.height = video.videoHeight * scale;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-            setLocalThumbnail(dataUrl);
-          }
-        } catch (e) {
-          // CORS error
-        }
-        setThumbnailLoading(false);
-        video.src = '';
-      };
-
-      video.onerror = () => {
-        setThumbnailLoading(false);
-        video.src = '';
-      };
-
-      video.src = asset.assetUrl;
+        .finally(() => {
+          clearTimeout(timeout);
+          setThumbnailLoading(false);
+        });
     }
-  }, [isVideo, asset.assetUrl, asset.assetId, displayThumbnail, thumbnailLoading, thumbnailAttempted, userId, onThumbnailGenerated]);
+    // Skip client-side generation for non-logged in users - CORS will block it
+  }, [isVideo, asset.assetUrl, asset.assetId, displayThumbnail, thumbnailAttempted, userId, onThumbnailGenerated]);
 
   return (
     <div className={`bg-white rounded-xl shadow-sm border overflow-hidden ${isInAds ? 'ring-2 ring-orange-400' : ''}`}>
@@ -551,13 +526,13 @@ function AssetCard({ asset, onUpdate, onPreview, adInfo, userId, onThumbnailGene
             <div className="px-3 pb-3 space-y-2 text-xs">
               <div>
                 <p className="text-gray-500 font-medium mb-1">Ads (sorted by sales):</p>
-                <div className="space-y-1 max-h-40 overflow-y-auto">
+                <div className="space-y-1 max-h-48 overflow-y-auto scrollbar-thin pr-1">
                   {adInfo.ads.map((ad, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs py-0.5 border-b border-gray-100 last:border-0">
+                    <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-gray-100 last:border-0">
                       <span className="text-gray-700 truncate flex-1 mr-2" title={ad.name}>
                         {ad.name}
                       </span>
-                      <span className="text-gray-500 whitespace-nowrap">
+                      <span className="text-gray-500 whitespace-nowrap text-right min-w-[80px]">
                         ${ad.sales.toFixed(0)} · <span className={ad.roas >= 1 ? 'text-green-600' : 'text-red-500'}>{ad.roas.toFixed(1)}</span>
                       </span>
                     </div>
