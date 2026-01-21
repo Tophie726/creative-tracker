@@ -74,15 +74,31 @@ export function ABTestView({ assets, campaignData }: ABTestViewProps) {
         target = campaign.keywordText;
         targetType = 'keyword';
         matchType = campaign.matchType;
-      } else if (groupBy === 'asin' && campaign.productTargetingExpression) {
-        // Extract ASIN from expression like "asin="B08XYZ123""
-        const asinMatch = campaign.productTargetingExpression.match(/asin[=:]?"?([A-Z0-9]+)"?/i);
-        if (asinMatch) {
-          target = asinMatch[1];
+      } else if (groupBy === 'asin') {
+        // Try to extract ASIN from product targeting expression or ID
+        let asin: string | null = null;
+
+        if (campaign.productTargetingExpression) {
+          // Try patterns like: asin="B08XYZ123", asin:B08XYZ123, or just the ASIN
+          const asinMatch = campaign.productTargetingExpression.match(/(?:asin[=:]?"?)?([A-Z0-9]{10})(?:")?/i);
+          if (asinMatch) {
+            asin = asinMatch[1].toUpperCase();
+          }
+        }
+
+        // Fallback to productTargetingId if it looks like an ASIN
+        if (!asin && campaign.productTargetingId) {
+          const idMatch = campaign.productTargetingId.match(/([A-Z0-9]{10})/i);
+          if (idMatch) {
+            asin = idMatch[1].toUpperCase();
+          }
+        }
+
+        if (asin) {
+          target = asin;
           targetType = 'asin';
         } else {
-          target = campaign.productTargetingExpression;
-          targetType = 'asin';
+          return; // Skip if no ASIN found
         }
       } else {
         return; // Skip if no valid target
