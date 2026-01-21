@@ -105,18 +105,90 @@ export function FileUpload({ onFileUpload, isLoading }: FileUploadProps) {
         </div>
       </div>
 
-      <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-        <h3 className="font-medium text-gray-700 mb-2">Required bulk report settings:</h3>
-        <ul className="text-sm text-gray-600 space-y-1">
-          <li className="flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-green-500" />
-            Brand assets data
-          </li>
-          <li className="flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-green-500" />
-            Sponsored Brands multi-ad group data
-          </li>
-        </ul>
+      {/* Instructions */}
+      <div className="mt-8 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+        <h3 className="font-semibold text-gray-900 mb-4 text-lg">How to download your Bulk Report</h3>
+
+        <div className="space-y-4 text-sm">
+          <div className="flex gap-3">
+            <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
+            <div>
+              <p className="font-medium text-gray-800">Go to Amazon Advertising Console</p>
+              <p className="text-gray-600">Navigate to <span className="font-mono bg-white px-1.5 py-0.5 rounded text-xs">Bulk operations</span> in the left sidebar</p>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+            <div>
+              <p className="font-medium text-gray-800">Set Date Range</p>
+              <p className="text-gray-600">Select at least <span className="font-semibold text-blue-700">30 days</span> (more data = better insights)</p>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
+            <div>
+              <p className="font-medium text-gray-800">Select all options under "Include"</p>
+              <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs text-gray-600">
+                <label className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                  Terminated campaigns
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                  Paused campaigns
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                  Zero impressions
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                  Placement data
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                  <span className="font-semibold text-blue-700">Brand assets data</span>
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                  Sponsored Products data
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                  <span className="font-semibold text-blue-700">Sponsored Brands data</span>
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                  <span className="font-semibold text-blue-700">SB multi-ad group data</span>
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                  Sponsored Display data
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                  Search term data
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">4</span>
+            <div>
+              <p className="font-medium text-gray-800">Click "Create spreadsheet for download"</p>
+              <p className="text-gray-600">Wait for the file to generate, then download the .xlsx file</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-xs text-amber-800">
+            <span className="font-semibold">Tip:</span> The highlighted options are required for video creative tracking. Select all boxes for the most complete data!
+          </p>
+        </div>
       </div>
     </div>
   );
