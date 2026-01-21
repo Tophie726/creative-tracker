@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Upload, Library, BarChart3, FlaskConical, AlertTriangle, Save, User, LogOut, Cloud, CloudOff } from 'lucide-react';
+import { Upload, Library, BarChart3, FlaskConical, AlertTriangle, User, LogOut, Cloud, CloudOff } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PasswordGate } from './components/PasswordGate';
 import { AuthModal } from './components/AuthModal';
@@ -26,7 +26,6 @@ function AppContent() {
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   // Show password gate if not verified
   if (!isPasswordVerified) {
@@ -90,7 +89,6 @@ function AppContent() {
 
       setAssets(assetsWithLabels);
       setCampaignData(data.campaignData);
-      setSaveStatus('idle');
 
       // Auto-save if logged in
       if (isAuthenticated && (assetsWithLabels.length > 0 || data.campaignData.length > 0)) {
@@ -115,7 +113,6 @@ function AppContent() {
         asset.assetId === assetId ? { ...asset, ...updates } : asset
       )
     );
-    setSaveStatus('idle');
 
     // Auto-save label updates if authenticated
     if (isAuthenticated) {
@@ -129,21 +126,6 @@ function AppContent() {
   const handleAddCategory = useCallback((category: string) => {
     setCategories((prev) => [...prev, category]);
   }, []);
-
-  const handleSave = useCallback(async () => {
-    if (!isAuthenticated) {
-      setShowAuthModal(true);
-      return;
-    }
-
-    setSaveStatus('saving');
-    const result = await saveData(assets, campaignData);
-    setSaveStatus(result.success ? 'saved' : 'error');
-
-    if (result.success) {
-      setTimeout(() => setSaveStatus('idle'), 3000);
-    }
-  }, [isAuthenticated, saveData, assets, campaignData]);
 
   const hasData = assets.length > 0 || campaignData.length > 0;
 
@@ -170,39 +152,32 @@ function AppContent() {
                 </div>
               )}
 
-              {/* Save/Auth Button */}
-              {hasData && (
+              {/* Save/Auth Button - only show if not logged in */}
+              {hasData && !isAuthenticated && (
                 <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    isAuthenticated
-                      ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                  }`}
+                  onClick={() => setShowAuthModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-blue-100 text-blue-700 hover:bg-blue-200"
                 >
+                  <CloudOff className="w-4 h-4" />
+                  Login to Save
+                </button>
+              )}
+
+              {/* Auto-save status indicator when logged in */}
+              {hasData && isAuthenticated && (
+                <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-600">
                   {isSaving ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
                       Saving...
-                    </>
-                  ) : saveStatus === 'saved' ? (
-                    <>
-                      <Cloud className="w-4 h-4" />
-                      Saved!
-                    </>
-                  ) : isAuthenticated ? (
-                    <>
-                      <Save className="w-4 h-4" />
-                      Save
                     </>
                   ) : (
                     <>
-                      <CloudOff className="w-4 h-4" />
-                      Login to Save
+                      <Cloud className="w-4 h-4" />
+                      Auto-saved
                     </>
                   )}
-                </button>
+                </div>
               )}
 
               {/* User Menu */}
