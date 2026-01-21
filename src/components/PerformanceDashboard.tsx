@@ -92,9 +92,8 @@ export function PerformanceDashboard({ assets, campaignData }: PerformanceDashbo
       existing.units += campaign.units;
       existing.adCount += 1;
 
-      // Track individual ad stats - use a unique key combining ad name + campaign + ad group
+      // Track individual ad stats - unique by ad name + campaign + ad group
       if (campaign.adName) {
-        const adKey = `${campaign.adName}|${campaign.campaignName}|${campaign.adGroupName}`;
         const existingAd = existing.ads.find(a =>
           a.adName === campaign.adName &&
           a.campaignName === campaign.campaignName &&
