@@ -1,6 +1,36 @@
 import * as XLSX from 'xlsx';
 import type { BrandAsset, CampaignData, ParsedData, ParseInfo } from '../types';
 
+// Helper to find sheet by case-insensitive name
+function findSheet(workbook: XLSX.WorkBook, targetName: string): XLSX.WorkSheet | null {
+  const lowerTarget = targetName.toLowerCase();
+  const sheetName = workbook.SheetNames.find(name => name.toLowerCase() === lowerTarget);
+  return sheetName ? workbook.Sheets[sheetName] : null;
+}
+
+// Helper to get value from row with case-insensitive key matching
+function getRowValue(row: Record<string, unknown>, ...keys: string[]): string {
+  // Create lowercase key map
+  const lowerKeys = Object.keys(row).reduce((acc, key) => {
+    acc[key.toLowerCase()] = key;
+    return acc;
+  }, {} as Record<string, string>);
+
+  for (const key of keys) {
+    const actualKey = lowerKeys[key.toLowerCase()];
+    if (actualKey && row[actualKey] !== undefined && row[actualKey] !== null && row[actualKey] !== '') {
+      return String(row[actualKey]).trim();
+    }
+  }
+  return '';
+}
+
+// Helper to get numeric value from row
+function getRowNumber(row: Record<string, unknown>, ...keys: string[]): number {
+  const val = getRowValue(row, ...keys);
+  return Number(val) || 0;
+}
+
 export function parseExcelFile(file: File): Promise<ParsedData> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -13,10 +43,18 @@ export function parseExcelFile(file: File): Promise<ParsedData> {
         const warnings: string[] = [];
 
         // Parse Brand Assets Data
-        const brandAssets = parseBrandAssets(workbook, warnings);
+        let brandAssets = parseBrandAssets(workbook, warnings);
 
         // Parse Campaign Data (tries multiple sheets)
         const { campaigns: campaignData, source: campaignDataSource } = parseCampaignData(workbook, warnings);
+
+        // If we have campaign data but no brand assets, create placeholder assets from video IDs
+        if (campaignData.length > 0 && brandAssets.length === 0) {
+          brandAssets = createPlaceholderAssets(campaignData);
+          if (brandAssets.length > 0) {
+            warnings.push('Video thumbnails unavailable - check "Brand assets data" when downloading for thumbnails');
+          }
+        }
 
         const parseInfo: ParseInfo = {
           hasBrandAssets: brandAssets.length > 0,
@@ -36,12 +74,33 @@ export function parseExcelFile(file: File): Promise<ParsedData> {
   });
 }
 
+// Create placeholder assets from video IDs found in campaign data
+function createPlaceholderAssets(campaigns: CampaignData[]): BrandAsset[] {
+  const uniqueVideoIds = new Set<string>();
+
+  for (const campaign of campaigns) {
+    if (campaign.videoAssetIds) {
+      // Video IDs might be comma-separated
+      const ids = campaign.videoAssetIds.split(',').map(id => id.trim()).filter(Boolean);
+      ids.forEach(id => uniqueVideoIds.add(id));
+    }
+  }
+
+  return Array.from(uniqueVideoIds).map(assetId => ({
+    assetType: 'Video',
+    assetId,
+    assetName: `Video ${assetId.slice(-8)}`, // Use last 8 chars as name
+    assetUrl: '', // No URL available without Brand Assets sheet
+    creativeName: '',
+    category: '',
+  }));
+}
+
 function parseBrandAssets(workbook: XLSX.WorkBook, warnings: string[]): BrandAsset[] {
-  const sheetName = 'Brand Assets Data (Read-only)';
-  const sheet = workbook.Sheets[sheetName];
+  const sheet = findSheet(workbook, 'Brand Assets Data (Read-only)');
 
   if (!sheet) {
-    warnings.push('Missing "Brand Assets Data" sheet - make sure to check "Brand assets data" when downloading the bulk report');
+    // Don't add warning here - we'll add a more specific warning later if needed
     return [];
   }
 
@@ -92,58 +151,57 @@ function parseCampaignData(workbook: XLSX.WorkBook, warnings: string[]): { campa
   const campaigns: CampaignData[] = [];
 
   // Try multiple sheet names - different bulk report formats use different sheets
-  const sheetNames = ['SB Multi Ad Group Campaigns', 'Sponsored Brands Campaigns'];
+  // Use case-insensitive matching to handle UK vs US format differences
+  const sheetPatterns = ['SB Multi Ad Group Campaigns', 'Sponsored Brands Campaigns'];
   let foundSheet: string | null = null;
 
-  for (const sheetName of sheetNames) {
-    const sheet = workbook.Sheets[sheetName];
+  for (const pattern of sheetPatterns) {
+    const sheet = findSheet(workbook, pattern);
     if (!sheet) continue;
 
     const rawData = XLSX.utils.sheet_to_json(sheet) as Record<string, unknown>[];
 
     for (const row of rawData) {
-      // Try multiple column names for video asset IDs
-      const videoAssetIds = String(
-        row['Video Asset IDs'] || row['Video Media IDs'] || ''
-      ).trim();
+      // Try multiple column names for video asset IDs (case-insensitive)
+      const videoAssetIds = getRowValue(row, 'Video Asset IDs', 'Video Media IDs');
       if (!videoAssetIds) continue;
 
       campaigns.push({
-        campaignId: String(row['Campaign ID'] || ''),
-        adGroupId: String(row['Ad Group ID'] || ''),
-        adId: String(row['Ad ID'] || ''),
-        keywordId: String(row['Keyword ID'] || ''),
-        productTargetingId: String(row['Product Targeting ID'] || ''),
-        productTargetingExpression: String(row['Product Targeting Expression'] || ''),
-        campaignName: String(row['Campaign Name'] || row['Campaign Name (Informational only)'] || ''),
-        adGroupName: String(row['Ad Group Name'] || row['Ad Group Name (Informational only)'] || ''),
-        adName: String(row['Ad Name'] || row['Campaign Name'] || ''),
-        keywordText: String(row['Keyword Text'] || ''),
-        matchType: String(row['Match Type'] || ''),
+        campaignId: getRowValue(row, 'Campaign ID'),
+        adGroupId: getRowValue(row, 'Ad Group ID'),
+        adId: getRowValue(row, 'Ad ID'),
+        keywordId: getRowValue(row, 'Keyword ID'),
+        productTargetingId: getRowValue(row, 'Product Targeting ID'),
+        productTargetingExpression: getRowValue(row, 'Product Targeting Expression'),
+        campaignName: getRowValue(row, 'Campaign Name', 'Campaign Name (Informational only)', 'Campaign name', 'Campaign name (Informational only)'),
+        adGroupName: getRowValue(row, 'Ad Group Name', 'Ad Group Name (Informational only)', 'Ad group name', 'Ad group name (Informational only)'),
+        adName: getRowValue(row, 'Ad Name', 'Ad name', 'Campaign Name', 'Campaign name'),
+        keywordText: getRowValue(row, 'Keyword Text', 'Keyword text'),
+        matchType: getRowValue(row, 'Match Type', 'Match type'),
         videoAssetIds,
-        impressions: Number(row['Impressions']) || 0,
-        clicks: Number(row['Clicks']) || 0,
-        spend: Number(row['Spend']) || 0,
-        sales: Number(row['Sales']) || 0,
-        orders: Number(row['Orders']) || 0,
-        units: Number(row['Units']) || 0,
-        ctr: Number(row['Click-through Rate']) || 0,
-        conversionRate: Number(row['Conversion Rate']) || 0,
-        acos: Number(row['ACOS']) || 0,
-        cpc: Number(row['CPC']) || 0,
-        roas: Number(row['ROAS']) || 0,
+        impressions: getRowNumber(row, 'Impressions'),
+        clicks: getRowNumber(row, 'Clicks'),
+        spend: getRowNumber(row, 'Spend'),
+        sales: getRowNumber(row, 'Sales'),
+        orders: getRowNumber(row, 'Orders'),
+        units: getRowNumber(row, 'Units'),
+        ctr: getRowNumber(row, 'Click-through Rate', 'Click-through rate'),
+        conversionRate: getRowNumber(row, 'Conversion Rate', 'Conversion rate'),
+        acos: getRowNumber(row, 'ACOS'),
+        cpc: getRowNumber(row, 'CPC'),
+        roas: getRowNumber(row, 'ROAS'),
       });
     }
 
     // If we found data in this sheet, record it and stop
     if (campaigns.length > 0) {
-      foundSheet = sheetName;
+      foundSheet = pattern;
       break;
     }
   }
 
-  // Check if sheets exist but have no video data
-  const hasSBSheet = sheetNames.some(name => workbook.Sheets[name]);
+  // Check if sheets exist but have no video data (case-insensitive)
+  const hasSBSheet = sheetPatterns.some(pattern => findSheet(workbook, pattern) !== null);
   if (hasSBSheet && campaigns.length === 0) {
     warnings.push('Found Sponsored Brands data but no video ads - you may not have any video campaigns running');
   } else if (!hasSBSheet) {
